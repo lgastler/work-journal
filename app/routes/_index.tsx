@@ -1,9 +1,26 @@
 import { redirect, type ActionArgs } from "@remix-run/node";
 import { Form, type V2_MetaFunction } from "@remix-run/react";
+import { db } from "~/db.server";
 
 export async function action({ request }: ActionArgs) {
   const formData = await request.formData();
-  console.table(Object.fromEntries(formData));
+  const { date, type, text } = Object.fromEntries(formData);
+
+  if (
+    typeof date !== "string" ||
+    typeof type !== "string" ||
+    typeof text !== "string"
+  ) {
+    throw new Error("Bad request");
+  }
+
+  await db.entry.create({
+    data: {
+      date: new Date(date),
+      type: type,
+      text: text,
+    },
+  });
   return redirect("/");
 }
 
@@ -28,19 +45,14 @@ export default function Index() {
             </div>
             <div className="mt-2 space-x-6">
               <label>
-                <input
-                  className="mr-1"
-                  type="radio"
-                  name="category"
-                  value="work"
-                />
+                <input className="mr-1" type="radio" name="type" value="work" />
                 Work
               </label>
               <label>
                 <input
                   className="mr-1"
                   type="radio"
-                  name="category"
+                  name="type"
                   value="learning"
                 />
                 Learning
@@ -49,7 +61,7 @@ export default function Index() {
                 <input
                   className="mr-1"
                   type="radio"
-                  name="category"
+                  name="type"
                   value="interesting"
                 />
                 Interesting thing
