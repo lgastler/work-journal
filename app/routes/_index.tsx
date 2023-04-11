@@ -1,5 +1,9 @@
-import { redirect, type ActionArgs } from "@remix-run/node";
-import { Form, useFetcher, type V2_MetaFunction } from "@remix-run/react";
+import { json, type ActionArgs, type LoaderArgs } from "@remix-run/node";
+import {
+  useFetcher,
+  useLoaderData,
+  type V2_MetaFunction,
+} from "@remix-run/react";
 import { format } from "date-fns";
 import { useEffect, useRef } from "react";
 import { db } from "~/db.server";
@@ -27,11 +31,20 @@ export async function action({ request }: ActionArgs) {
   });
 }
 
+export async function loader() {
+  const entries = await db.entry.findMany({});
+
+  return json({
+    entries,
+  });
+}
+
 export const meta: V2_MetaFunction = () => {
   return [{ title: "Work Journal - lgastler" }];
 };
 
 export default function Index() {
+  const { entries } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -117,6 +130,12 @@ export default function Index() {
           </fieldset>
         </fetcher.Form>
       </div>
+
+      {entries.map((entry) => (
+        <p key={entry.id}>
+          {entry.type} - {entry.text}
+        </p>
+      ))}
     </div>
   );
 }
