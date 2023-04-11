@@ -1,11 +1,12 @@
-import { json, type ActionArgs, type LoaderArgs } from "@remix-run/node";
+import { json, type ActionArgs } from "@remix-run/node";
 import {
   useFetcher,
   useLoaderData,
   type V2_MetaFunction,
 } from "@remix-run/react";
-import { format } from "date-fns";
+import { format, parseISO, startOfWeek } from "date-fns";
 import { useEffect, useRef } from "react";
+
 import { db } from "~/db.server";
 
 export async function action({ request }: ActionArgs) {
@@ -35,7 +36,10 @@ export async function loader() {
   const entries = await db.entry.findMany({});
 
   return json({
-    entries,
+    entries: entries.map((entry) => ({
+      ...entry,
+      date: entry.date.toISOString().substring(0, 10),
+    })),
   });
 }
 
@@ -47,6 +51,31 @@ export default function Index() {
   const { entries } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const entriesByWeek = entries.reduce<Record<string, typeof entries>>(
+    (memo, entry) => {
+      const sunday = startOfWeek(parseISO(entry.date));
+      const sundayString = format(sunday, "yyyy-MM-dd");
+      memo[sundayString] ||= [];
+      memo[sundayString].push(entry);
+
+      return memo;
+    },
+    {}
+  );
+
+  const weeks = Object.keys(entriesByWeek)
+    .sort((a, b) => a.localeCompare(b))
+    .map((dateString) => ({
+      dataString: dateString,
+      work: entriesByWeek[dateString].filter((entry) => entry.type === "work"),
+      learning: entriesByWeek[dateString].filter(
+        (entry) => entry.type === "learning"
+      ),
+      interesting: entriesByWeek[dateString].filter(
+        (entry) => entry.type === "interesting"
+      ),
+    }));
 
   useEffect(() => {
     if (fetcher.state === "idle" && textareaRef.current) {
@@ -131,11 +160,52 @@ export default function Index() {
         </fetcher.Form>
       </div>
 
-      {entries.map((entry) => (
-        <p key={entry.id}>
-          {entry.type} - {entry.text}
-        </p>
-      ))}
+      <div className="mt-6 space-y-12">
+        {weeks.map((week) => (
+          <div key={week.dataString}>
+            <ul>
+              <li>
+                <p className="font-bold">
+                  Week of {format(parseISO(week.dataString), "MMM do")}
+                </p>
+
+                <div className="mt-4 space-y-4">
+                  {week.work.length > 0 ? (
+                    <div>
+                      <p>Work:</p>
+                      <ul className="ml-6 list-disc">
+                        {week.work.map((entry) => (
+                          <li key={entry.id}>{entry.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {week.learning.length > 0 ? (
+                    <div>
+                      <p>Learnings:</p>
+                      <ul className="ml-6 list-disc">
+                        {week.learning.map((entry) => (
+                          <li key={entry.id}>{entry.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {week.interesting.length > 0 ? (
+                    <div>
+                      <p>Interesting things:</p>
+                      <ul className="ml-6 list-disc">
+                        {week.interesting.map((entry) => (
+                          <li key={entry.id}>{entry.text}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            </ul>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
